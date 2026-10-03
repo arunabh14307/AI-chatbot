@@ -1457,12 +1457,16 @@ body:not(.dark-mode) .moon-icon {
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-top-left-radius: 4px;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .user-message .msg-body {
   background: linear-gradient(135deg, #F36C21 0%, #D95610 100%);
   color: #FFFFFF;
   border-top-right-radius: 4px;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .msg-timestamp {
@@ -1473,6 +1477,58 @@ body:not(.dark-mode) .moon-icon {
 
 .user-message .msg-timestamp {
   text-align: right;
+}
+
+/* Clearly labeled demo response box & authoritative note */
+.demo-response-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.demo-response-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: var(--primary-subtle);
+  color: var(--primary);
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(243, 108, 33, 0.25);
+}
+
+.demo-response-body {
+  font-size: 0.93rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+}
+
+.demo-response-body p {
+  margin-bottom: 0.45rem;
+}
+
+.demo-response-body p:last-child {
+  margin-bottom: 0;
+}
+
+.demo-authoritative-note {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  background-color: var(--bg-subtle);
+  padding: 0.5rem 0.8rem;
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-sm);
+  margin-top: 0.4rem;
+  line-height: 1.45;
+}
+
+.demo-authoritative-note strong {
+  color: var(--text-primary);
 }
 
 .preview-notice-box {
@@ -1487,7 +1543,7 @@ body:not(.dark-mode) .moon-icon {
 
 /* Suggested Questions Container & Buttons */
 .suggested-questions-container {
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
   padding: 0.5rem 0;
   display: flex;
   flex-direction: column;
@@ -1508,7 +1564,7 @@ body:not(.dark-mode) .moon-icon {
 
 .suggested-questions-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 0.65rem;
 }
 
@@ -1516,8 +1572,8 @@ body:not(.dark-mode) .moon-icon {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.88rem;
+  padding: 0.75rem 0.95rem;
+  font-size: 0.86rem;
   font-weight: 500;
   text-align: left;
   line-height: 1.4;
@@ -1546,6 +1602,15 @@ body:not(.dark-mode) .moon-icon {
   width: 16px;
   height: 16px;
   color: var(--primary);
+  flex-shrink: 0;
+}
+
+.suggested-question-btn .btn-emoji-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -1666,8 +1731,14 @@ body:not(.dark-mode) .moon-icon {
   transition: transform var(--transition-fast), opacity var(--transition-fast);
 }
 
-.chat-send-btn:hover {
+.chat-send-btn:hover:not(:disabled) {
   transform: scale(1.05);
+}
+
+.chat-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .chat-send-btn svg {

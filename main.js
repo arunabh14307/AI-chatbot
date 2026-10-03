@@ -369,13 +369,13 @@ function initQuickHelpTriggers() {
  */
 const CHAT_CONSTANTS = {
   WELCOME_MESSAGE: "Hi! I'm LPU Assist. How can I help you today?",
-  TEMP_ASSISTANT_RESPONSE: "Thanks for your question! I'm currently in preview mode. AI-powered responses will be connected in the next step.",
   STORAGE_KEY: "lpu_assist_chat_session",
   SUGGESTED_QUESTIONS: [
-    "How can I check my timetable?",
-    "Where can I find my course information?",
-    "How do I contact university support?",
-    "Tell me about academic resources"
+    { title: "75% Attendance Rule", icon: "📋" },
+    { title: "Hostel Outpass Guide", icon: "🏠" },
+    { title: "UMS Password Reset", icon: "🔐" },
+    { title: "CA Marks Calculation", icon: "📝" },
+    { title: "RMS Grievance Ticket", icon: "🎫" }
   ]
 };
 
@@ -391,7 +391,7 @@ function initChatPreview() {
 
   let isResponding = false;
 
-  // Retrieve current session messages or seed with welcome message
+  // Retrieve current session messages or seed with initial welcome message
   function getSessionMessages() {
     try {
       const stored = sessionStorage.getItem(CHAT_CONSTANTS.STORAGE_KEY);
@@ -410,6 +410,7 @@ function initChatPreview() {
         id: 'msg-' + Date.now(),
         sender: 'bot',
         text: CHAT_CONSTANTS.WELCOME_MESSAGE,
+        isHtml: false,
         timestamp: formatCurrentTime()
       }
     ];
@@ -426,13 +427,70 @@ function initChatPreview() {
     }
   }
 
+  // Generate clearly labeled demo response for queries
+  function getDemoAssistantResponse(userQuery) {
+    const query = (userQuery || '').toLowerCase();
+    let body = "";
+
+    if (query.includes('attendance') || query.includes('75%')) {
+      body = `
+        <p>Students must maintain at least <strong>75% attendance</strong> in each course to be eligible to sit for end-term examinations.</p>
+        <p>You can track lecture, tutorial, and practical percentages live on the <strong>UMS portal</strong> under <em>Academic Performance &gt; View Attendance</em>.</p>
+      `;
+    } else if (query.includes('outpass') || query.includes('hostel') || query.includes('leave')) {
+      body = `
+        <p>Hostel resident students can apply for leaves and outpasses digitally via the <strong>UMS or Mobile App Hostel Module</strong>.</p>
+        <p>Once approved by your hostel warden, a digital barcode/QR pass is generated for turnstile verification at campus exit gates.</p>
+      `;
+    } else if (query.includes('password') || query.includes('ums') || query.includes('login') || query.includes('reset')) {
+      body = `
+        <p>If you cannot log in to UMS, use the <strong>Forgot Password</strong> option on the official login portal.</p>
+        <p>Enter your Student Registration Number to receive an OTP on your university-registered mobile and email. For registered contact updates, visit the IT Helpdesk.</p>
+      `;
+    } else if (query.includes('ca') || query.includes('calculation') || query.includes('marks') || query.includes('assessment')) {
+      body = `
+        <p>Continuous Assessment (CA) evaluates course assignments, quizzes, class tests, and presentations throughout the semester.</p>
+        <p>Your faculty consolidates the highest eligible scores and uploads them directly to UMS before end-term examinations.</p>
+      `;
+    } else if (query.includes('rms') || query.includes('grievance') || query.includes('ticket')) {
+      body = `
+        <p>The <strong>Relationship Management System (RMS)</strong> is Lovely Professional University's single-window portal for resolving student queries and grievances.</p>
+        <p>Log a ticket under the relevant category (Academics, Hostel, Accounts, Examination) to receive time-bound official assistance.</p>
+      `;
+    } else {
+      body = `
+        <p>Thank you for asking: <em>"${escapeHtml(userQuery)}"</em></p>
+        <p>This is a frontend demonstration response. In the next step, live AI capabilities will be connected to answer specific inquiries with direct intelligence.</p>
+      `;
+    }
+
+    return `
+      <div class="demo-response-container">
+        <div class="demo-response-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Demo Response (Preview Mode)</span>
+        </div>
+        <div class="demo-response-body">
+          ${body}
+        </div>
+        <div class="demo-authoritative-note">
+          <strong>Notice:</strong> Official LPU notifications and UMS notices should be treated as authoritative in all academic and administrative matters.
+        </div>
+      </div>
+    `;
+  }
+
   // Render the entire message list + suggested questions
   function renderConversation() {
     const messages = getSessionMessages();
     messagesArea.innerHTML = '';
 
     messages.forEach(msg => {
-      renderMessageElement(msg.sender, msg.text, msg.timestamp, false);
+      renderMessageElement(msg.sender, msg.text, msg.timestamp, msg.isHtml, false);
     });
 
     // Render suggested question buttons
@@ -441,7 +499,7 @@ function initChatPreview() {
   }
 
   // Render a single message bubble element
-  function renderMessageElement(sender, text, timestamp, shouldScroll = true) {
+  function renderMessageElement(sender, text, timestamp, isHtml = false, shouldScroll = true) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'bot-message'}`;
 
@@ -472,7 +530,7 @@ function initChatPreview() {
         <div class="msg-content">
           <div class="msg-sender">LPU Assist</div>
           <div class="msg-body">
-            <p>${escapeHtml(text)}</p>
+            ${isHtml ? text : `<p>${escapeHtml(text)}</p>`}
           </div>
           <div class="msg-timestamp">${timestamp || formatCurrentTime()}</div>
         </div>
@@ -492,9 +550,8 @@ function initChatPreview() {
     }
   }
 
-  // Render suggested question buttons container
+  // Render suggested question buttons container (5 requested topics)
   function renderSuggestedQuestionsBox() {
-    // Remove existing container if present
     const existing = document.getElementById('suggestedQuestionsContainer');
     if (existing) existing.remove();
 
@@ -509,17 +566,13 @@ function initChatPreview() {
           <path d="M12 16v-4"></path>
           <path d="M12 8h.01"></path>
         </svg>
-        <span>Suggested questions:</span>
+        <span>Suggested Questions:</span>
       </div>
       <div class="suggested-questions-grid">
-        ${CHAT_CONSTANTS.SUGGESTED_QUESTIONS.map(question => `
-          <button type="button" class="suggested-question-btn" data-question="${escapeHtml(question)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 16 16 12 12 8"></polyline>
-              <line x1="8" y1="12" x2="16" y2="12"></line>
-            </svg>
-            <span>${escapeHtml(question)}</span>
+        ${CHAT_CONSTANTS.SUGGESTED_QUESTIONS.map(q => `
+          <button type="button" class="suggested-question-btn" data-question="${escapeHtml(q.title)}">
+            <span class="btn-emoji-icon">${q.icon}</span>
+            <span>${escapeHtml(q.title)}</span>
           </button>
         `).join('')}
       </div>
@@ -537,9 +590,19 @@ function initChatPreview() {
     });
   }
 
+  // Update send button state based on textarea content
+  function updateSendButtonState() {
+    const hasText = chatTextarea.value.trim().length > 0;
+    if (chatSendBtn) {
+      chatSendBtn.style.opacity = (hasText && !isResponding) ? '1' : '0.5';
+      chatSendBtn.disabled = !hasText || isResponding;
+    }
+  }
+
   // Process sending a user message
   function handleSendMessage(rawText) {
     const text = (rawText || '').trim();
+    // Prevent empty or whitespace-only messages
     if (!text || isResponding) return;
 
     const time = formatCurrentTime();
@@ -547,6 +610,7 @@ function initChatPreview() {
       id: 'msg-' + Date.now(),
       sender: 'user',
       text: text,
+      isHtml: false,
       timestamp: time
     };
 
@@ -556,27 +620,30 @@ function initChatPreview() {
     saveSessionMessages(messages);
 
     // Render user message bubble
-    renderMessageElement('user', text, time, true);
+    renderMessageElement('user', text, time, false, true);
 
     // Reset textarea
     chatTextarea.value = '';
     chatTextarea.style.height = 'auto';
+    updateSendButtonState();
 
-    // Show typing/loading indicator
+    // Show realistic typing/loading indicator
     isResponding = true;
     if (typingIndicator) typingIndicator.style.display = 'flex';
-    if (chatSendBtn) chatSendBtn.style.opacity = '0.6';
+    updateSendButtonState();
     scrollToBottom(true);
 
-    // Temporary assistant response after realistic delay
+    // Generate response after realistic typing delay
     setTimeout(() => {
       if (typingIndicator) typingIndicator.style.display = 'none';
 
       const botTime = formatCurrentTime();
+      const responseHtml = getDemoAssistantResponse(text);
       const botMsg = {
         id: 'msg-' + Date.now(),
         sender: 'bot',
-        text: CHAT_CONSTANTS.TEMP_ASSISTANT_RESPONSE,
+        text: responseHtml,
+        isHtml: true,
         timestamp: botTime
       };
 
@@ -584,12 +651,12 @@ function initChatPreview() {
       updated.push(botMsg);
       saveSessionMessages(updated);
 
-      renderMessageElement('bot', CHAT_CONSTANTS.TEMP_ASSISTANT_RESPONSE, botTime, true);
+      renderMessageElement('bot', responseHtml, botTime, true, true);
 
       isResponding = false;
-      if (chatSendBtn) chatSendBtn.style.opacity = '1';
+      updateSendButtonState();
       chatTextarea.focus();
-    }, 700);
+    }, 650);
   }
 
   // Clear Chat functionality
@@ -598,25 +665,27 @@ function initChatPreview() {
       try {
         sessionStorage.removeItem(CHAT_CONSTANTS.STORAGE_KEY);
       } catch (err) {
-        console.warn(err);
+        console.warn("Error clearing chat session:", err);
       }
       isResponding = false;
       if (typingIndicator) typingIndicator.style.display = 'none';
-      if (chatSendBtn) chatSendBtn.style.opacity = '1';
 
       renderConversation();
       chatTextarea.value = '';
       chatTextarea.style.height = 'auto';
+      updateSendButtonState();
       chatTextarea.focus();
     });
   }
 
-  // Auto-resize textarea and handle Enter key
+  // Auto-resize textarea and update send button state
   chatTextarea.addEventListener('input', () => {
     chatTextarea.style.height = 'auto';
     chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 120) + 'px';
+    updateSendButtonState();
   });
 
+  // Enter sends message, Shift+Enter creates new line
   chatTextarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -645,7 +714,8 @@ function initChatPreview() {
     handleSendMessage(query);
   };
 
-  // Initial render from session
+  // Initial setup & render
+  updateSendButtonState();
   renderConversation();
 }
 
@@ -681,4 +751,5 @@ function initDynamicYear() {
     yearEl.textContent = new Date().getFullYear();
   }
 }
+
 
