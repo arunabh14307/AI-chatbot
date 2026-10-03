@@ -427,61 +427,93 @@ function initChatPreview() {
     }
   }
 
-  // Generate clearly labeled demo response for queries
-  function getDemoAssistantResponse(userQuery) {
-    const query = (userQuery || '').toLowerCase();
-    let body = "";
+  // Format AI markdown responses with support for headings, bold, italics, code, lists, and sources
+  function formatMarkdownResponse(markdown, sources = []) {
+    if (!markdown) return '';
 
-    if (query.includes('attendance') || query.includes('75%')) {
-      body = `
-        <p>Students must maintain at least <strong>75% attendance</strong> in each course to be eligible to sit for end-term examinations.</p>
-        <p>You can track lecture, tutorial, and practical percentages live on the <strong>UMS portal</strong> under <em>Academic Performance &gt; View Attendance</em>.</p>
-      `;
-    } else if (query.includes('outpass') || query.includes('hostel') || query.includes('leave')) {
-      body = `
-        <p>Hostel resident students can apply for leaves and outpasses digitally via the <strong>UMS or Mobile App Hostel Module</strong>.</p>
-        <p>Once approved by your hostel warden, a digital barcode/QR pass is generated for turnstile verification at campus exit gates.</p>
-      `;
-    } else if (query.includes('password') || query.includes('ums') || query.includes('login') || query.includes('reset')) {
-      body = `
-        <p>If you cannot log in to UMS, use the <strong>Forgot Password</strong> option on the official login portal.</p>
-        <p>Enter your Student Registration Number to receive an OTP on your university-registered mobile and email. For registered contact updates, visit the IT Helpdesk.</p>
-      `;
-    } else if (query.includes('ca') || query.includes('calculation') || query.includes('marks') || query.includes('assessment')) {
-      body = `
-        <p>Continuous Assessment (CA) evaluates course assignments, quizzes, class tests, and presentations throughout the semester.</p>
-        <p>Your faculty consolidates the highest eligible scores and uploads them directly to UMS before end-term examinations.</p>
-      `;
-    } else if (query.includes('rms') || query.includes('grievance') || query.includes('ticket')) {
-      body = `
-        <p>The <strong>Relationship Management System (RMS)</strong> is Lovely Professional University's single-window portal for resolving student queries and grievances.</p>
-        <p>Log a ticket under the relevant category (Academics, Hostel, Accounts, Examination) to receive time-bound official assistance.</p>
-      `;
-    } else {
-      body = `
-        <p>Thank you for asking: <em>"${escapeHtml(userQuery)}"</em></p>
-        <p>This is a frontend demonstration response. In the next step, live AI capabilities will be connected to answer specific inquiries with direct intelligence.</p>
+    // Basic markdown inline formatting
+    let formatted = markdown
+      // Headings
+      .replace(/^### (.*$)/gim, '<h4>$1</h4>')
+      .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^# (.*$)/gim, '<h3>$1</h3>')
+      // Bold & Italic
+      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+      // Inline code
+      .replace(/`([^`]+)`/gim, '<code>$1</code>')
+      // Markdown links [text](url)
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    // Parse list blocks and paragraphs
+    const lines = formatted.split('\n');
+    let inUl = false;
+    let inOl = false;
+    const outputLines = [];
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+
+      if (line.startsWith('* ') || line.startsWith('- ')) {
+        if (!inUl) {
+          outputLines.push('<ul>');
+          inUl = true;
+        }
+        outputLines.push(`<li>${line.substring(2)}</li>`);
+      } else if (/^\d+\.\s/.test(line)) {
+        if (!inOl) {
+          outputLines.push('<ol>');
+          inOl = true;
+        }
+        const item = line.replace(/^\d+\.\s*/, '');
+        outputLines.push(`<li>${item}</li>`);
+      } else {
+        if (inUl) {
+          outputLines.push('</ul>');
+          inUl = false;
+        }
+        if (inOl) {
+          outputLines.push('</ol>');
+          inOl = false;
+        }
+        if (line.length > 0) {
+          if (!line.startsWith('<h') && !line.startsWith('</h')) {
+            outputLines.push(`<p>${line}</p>`);
+          } else {
+            outputLines.push(line);
+          }
+        }
+      }
+    }
+
+    if (inUl) outputLines.push('</ul>');
+    if (inOl) outputLines.push('</ol>');
+
+    let finalHtml = outputLines.join('\n');
+
+    // Append source citations if available from verified knowledge base
+    if (Array.isArray(sources) && sources.length > 0) {
+      finalHtml += `
+        <div class="message-sources-container">
+          <span class="sources-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            Source Information:
+          </span>
+          <div class="sources-list">
+            ${sources.map(s => `
+              <a href="${escapeHtml(s.url || '#')}" target="_blank" rel="noopener noreferrer" class="source-item" title="Verified: ${escapeHtml(s.lastVerifiedDate || 'Official')}">
+                <span>📄 ${escapeHtml(s.title || 'Official Portal')}</span>
+              </a>
+            `).join('')}
+          </div>
+        </div>
       `;
     }
 
-    return `
-      <div class="demo-response-container">
-        <div class="demo-response-badge">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-          <span>Demo Response (Preview Mode)</span>
-        </div>
-        <div class="demo-response-body">
-          ${body}
-        </div>
-        <div class="demo-authoritative-note">
-          <strong>Notice:</strong> Official LPU notifications and UMS notices should be treated as authoritative in all academic and administrative matters.
-        </div>
-      </div>
-    `;
+    return finalHtml;
   }
 
   // Render the entire message list + suggested questions
@@ -599,8 +631,8 @@ function initChatPreview() {
     }
   }
 
-  // Process sending a user message
-  function handleSendMessage(rawText) {
+  // Process sending a user message to real AI backend
+  async function handleSendMessage(rawText) {
     const text = (rawText || '').trim();
     // Prevent empty or whitespace-only messages
     if (!text || isResponding) return;
@@ -627,23 +659,45 @@ function initChatPreview() {
     chatTextarea.style.height = 'auto';
     updateSendButtonState();
 
-    // Show realistic typing/loading indicator
+    // Show realistic typing/loading indicator while waiting
     isResponding = true;
     if (typingIndicator) typingIndicator.style.display = 'flex';
     updateSendButtonState();
     scrollToBottom(true);
 
-    // Generate response after realistic typing delay
-    setTimeout(() => {
-      if (typingIndicator) typingIndicator.style.display = 'none';
+    try {
+      // Build conversation history to send to backend (excluding the current turn)
+      const historyPayload = messages.slice(0, -1).map(m => ({
+        sender: m.sender,
+        text: m.rawText || m.text
+      }));
 
+      // Real fetch call to backend endpoint
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: text,
+          history: historyPayload
+        })
+      });
+
+      const data = await response.json();
       const botTime = formatCurrentTime();
-      const responseHtml = getDemoAssistantResponse(text);
+
+      let botRawText = data.response || data.message || 'I received your inquiry, but could not retrieve a response.';
+      const sources = data.sources || [];
+      const formattedHtml = formatMarkdownResponse(botRawText, sources);
+
       const botMsg = {
         id: 'msg-' + Date.now(),
         sender: 'bot',
-        text: responseHtml,
+        text: formattedHtml,
+        rawText: botRawText,
         isHtml: true,
+        sources: sources,
         timestamp: botTime
       };
 
@@ -651,12 +705,37 @@ function initChatPreview() {
       updated.push(botMsg);
       saveSessionMessages(updated);
 
-      renderMessageElement('bot', responseHtml, botTime, true, true);
+      renderMessageElement('bot', formattedHtml, botTime, true, true);
 
+    } catch (networkError) {
+      console.error('Chat API Error:', networkError);
+      const botTime = formatCurrentTime();
+      const errorHtml = `
+        <p>I am unable to connect to the assistant server at the moment.</p>
+        <p class="sub-note">Please ensure your local server is running, or verify your network connection. For urgent academic guidance, please consult the official UMS portal.</p>
+      `;
+
+      const botMsg = {
+        id: 'msg-' + Date.now(),
+        sender: 'bot',
+        text: errorHtml,
+        rawText: 'Unable to connect to server.',
+        isHtml: true,
+        sources: [],
+        timestamp: botTime
+      };
+
+      const updated = getSessionMessages();
+      updated.push(botMsg);
+      saveSessionMessages(updated);
+
+      renderMessageElement('bot', errorHtml, botTime, true, true);
+    } finally {
       isResponding = false;
+      if (typingIndicator) typingIndicator.style.display = 'none';
       updateSendButtonState();
       chatTextarea.focus();
-    }, 650);
+    }
   }
 
   // Clear Chat functionality
