@@ -353,8 +353,10 @@ function initQuickHelpTriggers() {
       if (query) {
         window.location.hash = 'chat';
         setTimeout(() => {
-          triggerChatQuestion(query);
-        }, 120);
+          if (window.handleExternalChatQuery) {
+            window.handleExternalChatQuery(query);
+          }
+        }, 150);
       }
     });
   });
@@ -362,243 +364,310 @@ function initQuickHelpTriggers() {
 
 /**
  * -----------------------------------------------------------------------------
- * 6. Chat Preview Interface
+ * 6. Chat Controller (Step 2 - Dedicated Chat Interface)
  * -----------------------------------------------------------------------------
  */
+const CHAT_CONSTANTS = {
+  WELCOME_MESSAGE: "Hi! I'm LPU Assist. How can I help you today?",
+  TEMP_ASSISTANT_RESPONSE: "Thanks for your question! I'm currently in preview mode. AI-powered responses will be connected in the next step.",
+  STORAGE_KEY: "lpu_assist_chat_session",
+  SUGGESTED_QUESTIONS: [
+    "How can I check my timetable?",
+    "Where can I find my course information?",
+    "How do I contact university support?",
+    "Tell me about academic resources"
+  ]
+};
+
 function initChatPreview() {
   const chatForm = document.getElementById('chatInputForm');
   const chatTextarea = document.getElementById('chatTextarea');
   const messagesArea = document.getElementById('chatMessagesArea');
   const typingIndicator = document.getElementById('typingIndicator');
   const clearChatBtn = document.getElementById('clearChatBtn');
-  const starterPrompts = document.getElementById('starterPrompts');
+  const chatSendBtn = document.getElementById('chatSendBtn');
 
-  // Auto-resize textarea
-  if (chatTextarea) {
-    chatTextarea.addEventListener('input', () => {
-      chatTextarea.style.height = 'auto';
-      chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 120) + 'px';
-    });
+  if (!chatForm || !chatTextarea || !messagesArea) return;
 
-    // Enter submits (Shift+Enter inserts newline)
-    chatTextarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        chatForm?.dispatchEvent(new Event('submit'));
-      }
-    });
-  }
+  let isResponding = false;
 
-  // Handle starter prompt chip clicks
-  if (starterPrompts) {
-    starterPrompts.addEventListener('click', (e) => {
-      const chip = e.target.closest('.prompt-chip');
-      if (chip) {
-        const text = chip.getAttribute('data-text');
-        if (text) {
-          triggerChatQuestion(text);
+  // Retrieve current session messages or seed with welcome message
+  function getSessionMessages() {
+    try {
+      const stored = sessionStorage.getItem(CHAT_CONSTANTS.STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
+    } catch (err) {
+      console.warn("Could not read chat session:", err);
+    }
+
+    const initial = [
+      {
+        id: 'msg-' + Date.now(),
+        sender: 'bot',
+        text: CHAT_CONSTANTS.WELCOME_MESSAGE,
+        timestamp: formatCurrentTime()
+      }
+    ];
+    saveSessionMessages(initial);
+    return initial;
+  }
+
+  // Save messages to sessionStorage
+  function saveSessionMessages(messages) {
+    try {
+      sessionStorage.setItem(CHAT_CONSTANTS.STORAGE_KEY, JSON.stringify(messages));
+    } catch (err) {
+      console.warn("Could not save chat session:", err);
+    }
+  }
+
+  // Render the entire message list + suggested questions
+  function renderConversation() {
+    const messages = getSessionMessages();
+    messagesArea.innerHTML = '';
+
+    messages.forEach(msg => {
+      renderMessageElement(msg.sender, msg.text, msg.timestamp, false);
+    });
+
+    // Render suggested question buttons
+    renderSuggestedQuestionsBox();
+    scrollToBottom(false);
+  }
+
+  // Render a single message bubble element
+  function renderMessageElement(sender, text, timestamp, shouldScroll = true) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'bot-message'}`;
+
+    if (sender === 'user') {
+      msgDiv.innerHTML = `
+        <div class="msg-avatar" aria-label="User avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div class="msg-content">
+          <div class="msg-sender">You</div>
+          <div class="msg-body">
+            <p>${escapeHtml(text)}</p>
+          </div>
+          <div class="msg-timestamp">${timestamp || formatCurrentTime()}</div>
+        </div>
+      `;
+    } else {
+      msgDiv.innerHTML = `
+        <div class="msg-avatar" aria-label="LPU Assist avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+          </svg>
+        </div>
+        <div class="msg-content">
+          <div class="msg-sender">LPU Assist</div>
+          <div class="msg-body">
+            <p>${escapeHtml(text)}</p>
+          </div>
+          <div class="msg-timestamp">${timestamp || formatCurrentTime()}</div>
+        </div>
+      `;
+    }
+
+    // Insert before the suggested questions container if it exists, otherwise append
+    const suggestionsContainer = document.getElementById('suggestedQuestionsContainer');
+    if (suggestionsContainer && suggestionsContainer.parentNode === messagesArea) {
+      messagesArea.insertBefore(msgDiv, suggestionsContainer);
+    } else {
+      messagesArea.appendChild(msgDiv);
+    }
+
+    if (shouldScroll) {
+      scrollToBottom(true);
+    }
+  }
+
+  // Render suggested question buttons container
+  function renderSuggestedQuestionsBox() {
+    // Remove existing container if present
+    const existing = document.getElementById('suggestedQuestionsContainer');
+    if (existing) existing.remove();
+
+    const container = document.createElement('div');
+    container.className = 'suggested-questions-container';
+    container.id = 'suggestedQuestionsContainer';
+
+    container.innerHTML = `
+      <div class="suggested-questions-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 16v-4"></path>
+          <path d="M12 8h.01"></path>
+        </svg>
+        <span>Suggested questions:</span>
+      </div>
+      <div class="suggested-questions-grid">
+        ${CHAT_CONSTANTS.SUGGESTED_QUESTIONS.map(question => `
+          <button type="button" class="suggested-question-btn" data-question="${escapeHtml(question)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 16 16 12 12 8"></polyline>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            <span>${escapeHtml(question)}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    messagesArea.appendChild(container);
+  }
+
+  // Smooth scroll helper
+  function scrollToBottom(smooth = true) {
+    if (!messagesArea) return;
+    messagesArea.scrollTo({
+      top: messagesArea.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto'
     });
   }
 
-  // Clear conversation button
+  // Process sending a user message
+  function handleSendMessage(rawText) {
+    const text = (rawText || '').trim();
+    if (!text || isResponding) return;
+
+    const time = formatCurrentTime();
+    const userMsg = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      text: text,
+      timestamp: time
+    };
+
+    // Update session storage
+    const messages = getSessionMessages();
+    messages.push(userMsg);
+    saveSessionMessages(messages);
+
+    // Render user message bubble
+    renderMessageElement('user', text, time, true);
+
+    // Reset textarea
+    chatTextarea.value = '';
+    chatTextarea.style.height = 'auto';
+
+    // Show typing/loading indicator
+    isResponding = true;
+    if (typingIndicator) typingIndicator.style.display = 'flex';
+    if (chatSendBtn) chatSendBtn.style.opacity = '0.6';
+    scrollToBottom(true);
+
+    // Temporary assistant response after realistic delay
+    setTimeout(() => {
+      if (typingIndicator) typingIndicator.style.display = 'none';
+
+      const botTime = formatCurrentTime();
+      const botMsg = {
+        id: 'msg-' + Date.now(),
+        sender: 'bot',
+        text: CHAT_CONSTANTS.TEMP_ASSISTANT_RESPONSE,
+        timestamp: botTime
+      };
+
+      const updated = getSessionMessages();
+      updated.push(botMsg);
+      saveSessionMessages(updated);
+
+      renderMessageElement('bot', CHAT_CONSTANTS.TEMP_ASSISTANT_RESPONSE, botTime, true);
+
+      isResponding = false;
+      if (chatSendBtn) chatSendBtn.style.opacity = '1';
+      chatTextarea.focus();
+    }, 700);
+  }
+
+  // Clear Chat functionality
   if (clearChatBtn) {
     clearChatBtn.addEventListener('click', () => {
-      if (messagesArea) {
-        messagesArea.innerHTML = `
-          <div class="chat-message bot-message">
-            <div class="msg-avatar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-              </svg>
-            </div>
-            <div class="msg-content">
-              <div class="msg-sender">LPU Assist</div>
-              <div class="msg-body">
-                <p>Chat cleared. How can I help you today? You can select any category or type your question below.</p>
-              </div>
-              <div class="msg-timestamp">Just now</div>
-            </div>
-          </div>
-        `;
+      try {
+        sessionStorage.removeItem(CHAT_CONSTANTS.STORAGE_KEY);
+      } catch (err) {
+        console.warn(err);
       }
-    });
-  }
+      isResponding = false;
+      if (typingIndicator) typingIndicator.style.display = 'none';
+      if (chatSendBtn) chatSendBtn.style.opacity = '1';
 
-  // Form submission
-  if (chatForm && chatTextarea) {
-    chatForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const message = chatTextarea.value.trim();
-      if (!message) return;
-
-      // Append user message
-      appendMessage('user', message);
+      renderConversation();
       chatTextarea.value = '';
       chatTextarea.style.height = 'auto';
-
-      // Show typing indicator
-      if (typingIndicator) typingIndicator.style.display = 'flex';
-      messagesArea.scrollTop = messagesArea.scrollHeight;
-
-      // Realistic mock response reflecting frontend preview state
-      setTimeout(() => {
-        if (typingIndicator) typingIndicator.style.display = 'none';
-        const responseText = generatePreviewResponse(message);
-        appendMessage('bot', responseText);
-      }, 700);
+      chatTextarea.focus();
     });
   }
-}
 
-/**
- * Triggers a question directly into the chat
- */
-function triggerChatQuestion(questionText) {
-  const chatTextarea = document.getElementById('chatTextarea');
-  const chatForm = document.getElementById('chatInputForm');
-  if (chatTextarea && chatForm) {
-    chatTextarea.value = questionText;
-    chatForm.dispatchEvent(new Event('submit'));
-  }
-}
+  // Auto-resize textarea and handle Enter key
+  chatTextarea.addEventListener('input', () => {
+    chatTextarea.style.height = 'auto';
+    chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 120) + 'px';
+  });
 
-/**
- * Append message bubble to chat
- */
-function appendMessage(sender, text) {
-  const messagesArea = document.getElementById('chatMessagesArea');
-  if (!messagesArea) return;
+  chatTextarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(chatTextarea.value);
+    }
+  });
 
-  const msgDiv = document.createElement('div');
-  msgDiv.className = `chat-message ${sender}-message`;
+  // Submit via send button / form
+  chatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleSendMessage(chatTextarea.value);
+  });
 
-  const now = new Date();
-  const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Handle suggested question clicks via event delegation
+  messagesArea.addEventListener('click', (e) => {
+    const btn = e.target.closest('.suggested-question-btn');
+    if (!btn) return;
+    const question = btn.getAttribute('data-question');
+    if (question) {
+      handleSendMessage(question);
+    }
+  });
 
-  if (sender === 'user') {
-    msgDiv.innerHTML = `
-      <div class="msg-avatar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-        </svg>
-      </div>
-      <div class="msg-content">
-        <div class="msg-sender">You</div>
-        <div class="msg-body">
-          <p>${escapeHtml(text)}</p>
-        </div>
-        <div class="msg-timestamp">${timeString}</div>
-      </div>
-    `;
-  } else {
-    msgDiv.innerHTML = `
-      <div class="msg-avatar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-          <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-        </svg>
-      </div>
-      <div class="msg-content">
-        <div class="msg-sender">LPU Assist</div>
-        <div class="msg-body">
-          ${text}
-        </div>
-        <div class="msg-timestamp">${timeString}</div>
-      </div>
-    `;
-  }
+  // Expose for external calls (e.g. from Home page quick help cards)
+  window.handleExternalChatQuery = function(query) {
+    handleSendMessage(query);
+  };
 
-  messagesArea.appendChild(msgDiv);
-  messagesArea.scrollTop = messagesArea.scrollHeight;
-}
-
-/**
- * Generate preview bot guidance for common student topics
- */
-function generatePreviewResponse(userQuery) {
-  const query = userQuery.toLowerCase();
-
-  if (query.includes('attendance')) {
-    return `
-      <p>Here is what you need to know about attendance at LPU:</p>
-      <ul>
-        <li><strong>75% Mandatory Criteria:</strong> Students must maintain a minimum of 75% attendance in each course to sit for end-term examinations.</li>
-        <li><strong>Checking Attendance:</strong> Go to <em>UMS &gt; Academic Performance &gt; View Attendance</em> to monitor lecture, tutorial, and practical percentages in real-time.</li>
-        <li><strong>Duty Leaves:</strong> Official university representation or medical exemptions must be approved by the designated authorities through the UMS duty leave request module.</li>
-      </ul>
-      <div class="preview-notice-box">
-        <em>Note: AI engine is in frontend preview. Full natural language responses will be active in the next phase!</em>
-      </div>
-    `;
-  }
-
-  if (query.includes('outpass') || query.includes('leave') || query.includes('hostel')) {
-    return `
-      <p>Here is the standard hostel leave and outpass procedure:</p>
-      <ol>
-        <li>Open the <strong>UMS / Mobile App Hostel Module</strong>.</li>
-        <li>Select <em>Apply Outpass / Home Leave</em>.</li>
-        <li>Specify the departure date, expected return time, and destination contact.</li>
-        <li>For home leaves, an automated confirmation message/call is sent to the registered guardian contact.</li>
-        <li>Once approved, scan your digital QR/barcode at the university exit turnstiles.</li>
-      </ol>
-      <div class="preview-notice-box">
-        <em>Note: AI engine is in frontend preview. Full natural language responses will be active in the next phase!</em>
-      </div>
-    `;
-  }
-
-  if (query.includes('ums') || query.includes('password') || query.includes('login')) {
-    return `
-      <p>To recover or reset your UMS credentials:</p>
-      <ul>
-        <li>Visit the official UMS login portal and click <strong>Forgot Password</strong>.</li>
-        <li>Provide your official Student Registration Number.</li>
-        <li>Enter the OTP received on your university-registered phone number and email.</li>
-        <li>If your mobile number has changed, visit the University IT Services helpdesk with your physical student ID card.</li>
-      </ul>
-      <div class="preview-notice-box">
-        <em>Note: AI engine is in frontend preview. Full natural language responses will be active in the next phase!</em>
-      </div>
-    `;
-  }
-
-  if (query.includes('ca') || query.includes('assessment') || query.includes('exam')) {
-    return `
-      <p>Details regarding Examinations and Continuous Assessment (CA):</p>
-      <ul>
-        <li><strong>Continuous Assessment:</strong> CA consists of class tests, quizzes, assignments, and presentations. Best scores are consolidated on your UMS grade page.</li>
-        <li><strong>Hall Tickets:</strong> Downloadable on UMS under <em>Examinations &gt; Admit Card</em> 1–2 weeks prior to the commencement of end-term exams (subject to 75% attendance clearance).</li>
-        <li><strong>Datesheets:</strong> Official final datesheets are published on UMS with classroom and shift allocations.</li>
-      </ul>
-      <div class="preview-notice-box">
-        <em>Note: AI engine is in frontend preview. Full natural language responses will be active in the next phase!</em>
-      </div>
-    `;
-  }
-
-  // Fallback realistic response
-  return `
-    <p>Thank you for your question: <em>"${escapeHtml(userQuery)}"</em></p>
-    <p>This frontend preview of <strong>LPU Assist</strong> is ready! In the upcoming step, this assistant will be integrated with the live AI backend to provide direct, intelligent answers to any question regarding LPU academic policies, campus facilities, and portal procedures.</p>
-    <p>In the meantime, feel free to explore the <strong>Quick Help Guide</strong> and <strong>FAQs</strong> section for verified information.</p>
-  `;
+  // Initial render from session
+  renderConversation();
 }
 
 /**
  * Safe HTML escaping for user strings
  */
 function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * Format timestamp helper (e.g. "11:45 PM")
+ */
+function formatCurrentTime() {
+  const now = new Date();
+  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -612,3 +681,4 @@ function initDynamicYear() {
     yearEl.textContent = new Date().getFullYear();
   }
 }
+

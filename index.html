@@ -588,7 +588,7 @@
       <div class="container chat-layout-container">
         
         <!-- Chat Assistant Header -->
-        <div class="chat-portal-card">
+        <div class="chat-portal-card" id="chatPortalCard">
           <div class="chat-portal-header">
             <div class="chat-agent-info">
               <div class="agent-avatar">
@@ -600,15 +600,15 @@
               </div>
               <div class="agent-meta">
                 <div class="agent-title-row">
-                  <h2 class="agent-name">LPU Assist Assistant</h2>
-                  <span class="preview-mode-tag">AI Ready Preview</span>
+                  <h2 class="agent-name">LPU Assist</h2>
+                  <span class="preview-mode-tag">Preview Mode</span>
                 </div>
-                <p class="agent-status">Online • Student Academic & Campus Guide</p>
+                <p class="agent-status">Your Smart Student Support Assistant</p>
               </div>
             </div>
 
             <div class="chat-portal-actions">
-              <button class="btn btn-sm btn-ghost" id="clearChatBtn" title="Clear current conversation">
+              <button class="btn btn-sm btn-ghost" id="clearChatBtn" title="Clear current conversation" aria-label="Clear Chat">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"></polyline>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -619,55 +619,12 @@
           </div>
 
           <!-- Chat Conversation Scroll Area -->
-          <div class="chat-messages-area" id="chatMessagesArea">
-            
-            <!-- Bot Welcome Bubble -->
-            <div class="chat-message bot-message">
-              <div class="msg-avatar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                  <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-                </svg>
-              </div>
-              <div class="msg-content">
-                <div class="msg-sender">LPU Assist</div>
-                <div class="msg-body">
-                  <p>Welcome to <strong>LPU Assist</strong>! 👋</p>
-                  <p>I am your smart student support assistant for Lovely Professional University. You can ask me questions about attendance guidelines, exam patterns, hostel outpass procedures, UMS access, or campus facilities.</p>
-                  <div class="preview-notice-box">
-                    <strong>Frontend Preview:</strong> The user interface is active. Select any suggested topic below or type a query to test the conversation workflow.
-                  </div>
-                </div>
-                <div class="msg-timestamp">Just now</div>
-              </div>
-            </div>
-
-            <!-- Starter Prompt Suggestion Pills -->
-            <div class="chat-starter-prompts" id="starterPrompts">
-              <span class="prompts-label">Try asking:</span>
-              <div class="prompt-chips-wrapper">
-                <button class="prompt-chip" data-text="What is the 75% attendance rule for semester exams?">
-                  📋 75% Attendance Rule
-                </button>
-                <button class="prompt-chip" data-text="How do I apply for a hostel outpass or home leave?">
-                  🏠 Hostel Outpass Guide
-                </button>
-                <button class="prompt-chip" data-text="How can I reset my UMS portal password?">
-                  🔐 UMS Password Reset
-                </button>
-                <button class="prompt-chip" data-text="How are Continuous Assessment CA marks evaluated?">
-                  📝 CA Marks Calculation
-                </button>
-                <button class="prompt-chip" data-text="Where can I submit a grievance on the RMS portal?">
-                  🎫 RMS Grievance Ticket
-                </button>
-              </div>
-            </div>
-
+          <div class="chat-messages-area" id="chatMessagesArea" role="log" aria-live="polite">
+            <!-- Dynamically populated and restored from sessionStorage -->
           </div>
 
           <!-- Typing Indicator (Hidden by default) -->
-          <div class="typing-indicator" id="typingIndicator" style="display: none;">
+          <div class="typing-indicator" id="typingIndicator" style="display: none;" aria-live="assertive">
             <div class="typing-dots">
               <span></span>
               <span></span>
@@ -683,10 +640,10 @@
                 <textarea 
                   id="chatTextarea" 
                   class="chat-textarea" 
-                  placeholder="Ask a question about LPU academics, hostel, UMS, or exams..." 
+                  placeholder="Ask LPU Assist anything..." 
                   rows="1" 
-                  aria-label="Message input"></textarea>
-                <button type="submit" class="chat-send-btn" id="chatSendBtn" aria-label="Send message">
+                  aria-label="Ask LPU Assist anything..."></textarea>
+                <button type="submit" class="chat-send-btn" id="chatSendBtn" aria-label="Send message" title="Send message">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -695,7 +652,7 @@
               </div>
             </form>
             <div class="chat-disclaimer">
-              <span>LPU Assist provides informational student support. Refer to official university notifications on UMS for statutory notices.</span>
+              <span>LPU Assist is currently in preview mode. AI-powered responses will be connected in the next step.</span>
             </div>
           </div>
         </div>
